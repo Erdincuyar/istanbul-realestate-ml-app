@@ -1,0 +1,15 @@
+# Mac sistem dosyaları
+.DS_Store
+
+# Python sanal ortam
+venv/
+__pycache__/
+*.pyc
+
+# Veri seti (Buraya yüklenmemeli, sadece localde kalmalı)
+data/*.csv
+data/*.xlsx
+
+# Modeller (Büyük dosyalar olduğu için genellikle yüklenmez)
+models/*.joblib
+models/*.pkl
