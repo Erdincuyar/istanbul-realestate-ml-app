@@ -2,6 +2,8 @@
 # ─────────────────────────────────────────────
 # CONFIG — Sütun adlarını buradan ayarlayın
 # ─────────────────────────────────────────────
+import pandas as pd
+import numpy as np
 TARGET        = "price"
 FEATURES_NUM  = ["gross_sqm", "net_sqm", "total_rooms", "floor",
                  "total_floors", "building_age", 

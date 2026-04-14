@@ -1,0 +1,28 @@
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv(r"C:\Users\lenova\OneDrive\Masaüstü\istanbul_apartment_prices.csv")
+print(f"Başlangıç: {len(df):,}")
+
+q1, q3 = df['price'].quantile([0.02, 0.98])
+df = df[df['price'].between(q1, q3)]
+print(f"Fiyat filtresi: {len(df):,}")
+
+df = df[~(df['net_sqm'] > df['gross_sqm'])]
+print(f"net>gross: {len(df):,}")
+
+df = df[~(df['floor'] > df['total_floors'])]
+print(f"floor>total: {len(df):,}")
+
+df = df[df['building_age'] <= 100]
+print(f"building_age: {len(df):,}")
+
+df = df[df['gross_sqm'] >= 20]
+print(f"gross_sqm: {len(df):,}")
+
+df = df[df['rooms'] <= 20]
+print(f"rooms: {len(df):,}")
+
+mask = df['maintenance_fee'].isna() | (df['maintenance_fee'] <= 100000)
+df = df[mask]
+print(f"maintenance_fee: {len(df):,}")
