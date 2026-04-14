@@ -34,13 +34,13 @@ def load_data():
     df['lon_base'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.01, 28.97])[1])
 
     # Daha geniş jitter (üst üste binmeyi azaltır)
-    df['lat'] = df['lat_base'] + np.random.uniform(-0.02, 0.02, len(df))
-    df['lon'] = df['lon_base'] + np.random.uniform(-0.02, 0.02, len(df))
+    df['lat'] = df['lat_base'] + np.random.normal(0, 0.01, len(df))
+    df['lon'] = df['lon_base'] + np.random.normal(0, 0.01, len(df))
 
     df['fiyat_str'] = df['price'].apply(lambda x: f"{x:,} TL")
 
     # Yüksekliği normalize et (çok uzun olmasın)
-    df['height'] = df['price'] / df['price'].max() * 3000  # max 3000 px
+    df['height'] = (df['price'] / df['price'].max()) * 10000
 
     return df
 
@@ -60,9 +60,9 @@ layer = pdk.Layer(
     data=filtered_df,
     get_position='[lon, lat]',
     get_elevation='height',
-    elevation_scale=1,
-    radius=120,
-    get_fill_color='[255, 80, 0, 180]',
+    elevation_scale=5,   # 🔥 artırdık
+    radius=200,          # 🔥 artırdık
+    get_fill_color='[255, 100, 0, 200]',
     pickable=True,
     auto_highlight=True,
 )
@@ -71,8 +71,10 @@ view_state = pdk.ViewState(
     latitude=41.01,
     longitude=28.97,
     zoom=10,
-    pitch=45,  # 3D görünüm
+    pitch=60,   # 🔥 artır (45 → 60)
+    bearing=20  # hafif açı ver
 )
+
 
 deck = pdk.Deck(
     layers=[layer],
