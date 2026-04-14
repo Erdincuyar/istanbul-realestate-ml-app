@@ -14,6 +14,6 @@ Bu proje, İstanbul'daki güncel konut ilanlarını analiz ederek makine öğren
 - **Kredi Faiz Oranı ve Taksit Simülasyonu:** kredi ve taksit tutarını hesapla.
 
 **Geliştiren:**
-Erdinç Uyar
-Selen İmahanoğlu
+Erdinç Uyar,
+Selen İmahanoğlu,
 Emre Aydoğan
