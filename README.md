@@ -13,4 +13,7 @@ Bu proje, İstanbul'daki güncel konut ilanlarını analiz ederek makine öğren
 - **Fırsat Dedektörü:** Piyasa fiyatının %20 ve daha altında kalan ilanları listele.
 - **Kredi Faiz Oranı ve Taksit Simülasyonu:** kredi ve taksit tutarını hesapla.
 
-**Geliştiren:** Erdinç Uyar
+**Geliştiren:**
+Erdinç Uyar
+Selen İmahanoğlu
+Emre Aydoğan
