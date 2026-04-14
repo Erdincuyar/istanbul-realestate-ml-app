@@ -6,14 +6,15 @@ import pydeck as pdk
 import numpy as np
 
 # --- SAYFA AYARLARI ---
-st.set_page_config(page_title="İstEmlak-AI | İstanbul Haritası", layout="wide")
+st.set_page_config(page_title="İstEmlak-AI | İstanbul Analiz", layout="wide")
 
-# --- DOSYA YOLLARI ---
+# --- DOSYA YOLLARI SİSTEMİ ---
+# Streamlit Cloud üzerinde yolların karışmaması için absolute (tam) yol kullanıyoruz
 current_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(current_dir)
 DATA_PATH = os.path.join(base_dir, "data", "istanbul_apartment_prices_2026.csv")
 
-# --- İSTANBUL İLÇE KOORDİNATLARI (Merkezler) ---
+# --- KOORDİNAT VERİ TABANI ---
 ISTANBUL_COORDS = {
     'Adalar': [40.8732, 29.1278], 'Arnavutköy': [41.1852, 28.7400], 'Ataşehir': [40.9928, 29.1244],
     'Avcılar': [40.9801, 28.7175], 'Bağcılar': [41.0343, 28.8336], 'Bahçelievler': [40.9990, 28.8637],
@@ -32,57 +33,72 @@ ISTANBUL_COORDS = {
 
 @st.cache_data
 def get_clean_data():
-    df = pd.read_csv(DATA_PATH)
-    # Her ilana ilçesine göre koordinat ver ve ilanları birbirinden ayır (scatter)
-    df['lat'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[0])
-    df['lon'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[1])
-    # Noktaların üst üste binmemesi için küçük bir dağılım
-    df['lat'] += np.random.uniform(-0.015, 0.015, len(df))
-    df['lon'] += np.random.uniform(-0.015, 0.015, len(df))
-    # Fiyatı okunabilir formatta hazırlayalım
-    df['fiyat_text'] = df['price'].apply(lambda x: f"{x:,} TL")
-    return df
+    try:
+        # Önce dosyanın varlığını kontrol et
+        if not os.path.exists(DATA_PATH):
+            st.error(f"Dosya bulunamadı: {DATA_PATH}")
+            return pd.DataFrame()
 
+        df = pd.read_csv(DATA_PATH)
+
+        if df.empty:
+            st.error("Dosya okundu ama içeriği boş görünüyor.")
+            return pd.DataFrame()
+
+        # Koordinat atamaları ve scatter dağılımı
+        df['lat'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[0])
+        df['lon'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[1])
+        df['lat'] += np.random.uniform(-0.015, 0.015, len(df))
+        df['lon'] += np.random.uniform(-0.015, 0.015, len(df))
+        df['fiyat_formatted'] = df['price'].apply(lambda x: f"{x:,} TL")
+        return df
+    except Exception as e:
+        st.error(f"Veri yükleme hatası: {e}")
+        return pd.DataFrame()
+
+# Veriyi çek
 df = get_clean_data()
 
+if df.empty:
+    st.warning("Lütfen veri dosyasını kontrol edin. Uygulama veri olmadan çalışamaz.")
+    st.stop()
+
+# --- HARİTA EKRANI ---
 st.title("📍 İstanbul İnteraktif Fiyat Haritası")
 
-# --- FİLTRELEME ---
 with st.sidebar:
     st.header("🔍 Filtreler")
-    fiyat_araligi = st.slider("Fiyat Aralığı (TL)",
-                             int(df.price.min()),
-                             int(df.price.max()),
-                             (1000000, 15000000))
+    fiyat_filtresi = st.slider("Fiyat Aralığı (TL)",
+                              int(df.price.min()),
+                              int(df.price.max()),
+                              (1000000, 10000000))
 
-filtered_df = df[(df.price >= fiyat_araligi[0]) & (df.price <= fiyat_araligi[1])]
+# Filtrelenmiş veri
+m_data = df[(df.price >= fiyat_filtresi[0]) & (df.price <= fiyat_filtresi[1])]
 
-# --- HARİTA GÖRÜNÜMÜ (SCATTERPLOT) ---
-# En stabil ve ilçe isimlerini gösteren katman budur.
+# Harita Katmanı (Senin istediğin ilçe/mahalle isimli görünüm)
 layer = pdk.Layer(
     "ScatterplotLayer",
-    filtered_df,
+    m_data,
     get_position=["lon", "lat"],
-    get_color="[200, 30, 0, 160]", # Kırmızı noktalar
+    get_color="[220, 30, 0, 160]",
     get_radius=180,
     pickable=True,
 )
 
-view_state = pdk.ViewState(latitude=41.01, longitude=28.97, zoom=10, pitch=0)
-
 st.pydeck_chart(pdk.Deck(
-    map_style='mapbox://styles/mapbox/dark-v10', # Siyah şık harita
-    initial_view_state=view_state,
+    map_style='mapbox://styles/mapbox/dark-v10',
+    initial_view_state=pdk.ViewState(latitude=41.01, longitude=28.97, zoom=10),
     layers=[layer],
     tooltip={
         "html": """
             <b>İlçe:</b> {district} <br/>
             <b>Mahalle:</b> {neighborhood} <br/>
-            <b>Fiyat:</b> {fiyat_text} <br/>
+            <b>Fiyat:</b> {fiyat_formatted} <br/>
             <b>Oda:</b> {rooms}+{halls}
         """,
         "style": {"backgroundColor": "steelblue", "color": "white"}
     }
 ))
 
-st.info(f"Şu an haritada {len(filtered_df):,} ilan listeleniyor.")
+st.success(f"Haritada {len(m_data):,} ilan listeleniyor.")
