@@ -7,7 +7,7 @@ import pydeck as pdk
 import numpy as np
 
 # --- SAYFA AYARLARI ---
-st.set_page_config(page_title="İstEmlak-AI | Akıllı Panel", layout="wide")
+st.set_page_config(page_title="İstEmlak-AI | Pro Analiz", layout="wide")
 
 # --- DOSYA YOLLARI SİSTEMİ ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +18,6 @@ ENCODER_PATH = os.path.join(base_dir, "models", "encoders.joblib")
 DATA_PATH = os.path.join(base_dir, "data", "istanbul_apartment_prices_2026.csv")
 
 # --- İSTANBUL İLÇE KOORDİNAT VERİ TABANI ---
-# İlçe isimlerine göre haritada görünecekleri merkez noktalar
 ISTANBUL_COORDS = {
     'Adalar': [40.8732, 29.1278], 'Arnavutköy': [41.1852, 28.7400], 'Ataşehir': [40.9928, 29.1244],
     'Avcılar': [40.9801, 28.7175], 'Bağcılar': [41.0343, 28.8336], 'Bahçelievler': [40.9990, 28.8637],
@@ -42,224 +41,114 @@ def load_ml():
 
 @st.cache_data
 def get_data():
-    if not os.path.exists(DATA_PATH):
-        st.error(f"VERİ DOSYASI BULUNAMADI! Aranan yer: {DATA_PATH}")
-        st.stop()
     df = pd.read_csv(DATA_PATH)
-
-    # İLÇE İSMİNE GÖRE KOORDİNAT ATAMA (Düzeltme Burası)
     if 'lat' not in df.columns or 'lon' not in df.columns:
-        # Verideki ilçe ismini koordinat sözlüğüyle eşleştir
-        # Eğer sözlükte olmayan bir ilçe varsa İstanbul'un merkezine (Fatih) koyar
         df['lat'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[0])
         df['lon'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[1])
-
-        # Noktalar tam üst üste binmesin diye çok küçük rastgele dağılım ekleyelim
-        # Bu, aynı ilçedeki ilanların bir bulut gibi görünmesini sağlar
+        # İlçe içinde hafif dağılım (Sütunlar çok uzun olmasın diye 0.02 yaptık)
         df['lat'] += np.random.uniform(-0.02, 0.02, len(df))
         df['lon'] += np.random.uniform(-0.02, 0.02, len(df))
-    int_cols = ['building_age', 'floor', 'total_floors', 'rooms', 'halls']
-    for col in int_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
     return df
 
-# Modeli ve Veriyi Yükle
 try:
     model, encoders = load_ml()
     df_raw = get_data()
 except Exception as e:
-    st.error(f"Yükleme Hatası: {e}")
+    st.error(f"Hata: {e}")
     st.stop()
 
-# --- YARDIMCI FONKSİYONLAR ---
+# --- YARDIMCI ARAÇLAR ---
 def slugify(text):
-    text = str(text).lower()
     tr_map = str.maketrans("çğıöşü ", "cgiosu-")
-    text = text.translate(tr_map)
-    text = re.sub(r'[^a-z0-9-]', '', text)
-    return text
+    return str(text).lower().translate(tr_map)
 
-translate = {
-    'Furnished': 'Eşyalı', 'Unfurnished': 'Eşyasız', 'Vacant': 'Boş',
-    'Occupied by Owner': 'Mülk Sahibi Oturuyor', 'Occupied by Tenant': 'Kiracılı',
-    'Eligible': 'Uygun', 'Not Eligible': 'Uygun Değil', 'Combi Boiler': 'Kombi',
-    'Air Conditioning': 'Klima', 'Central Heating': 'Merkezi Sistem',
-    'Underfloor Heating': 'Yerden Isıtma', 'Natural Gas': 'Doğalgaz',
-    'Land Title': 'Arsa Tapulu', 'Construction Easement': 'Kat İrtifaklı',
-    'Condominium Title': 'Kat Mülkiyetli', 'No Title Deed': 'Tapu Yok', 'Yes': 'Var', 'No': 'Yok'
-}
+translate = {'Furnished': 'Eşyalı', 'Unfurnished': 'Eşyasız', 'Yes': 'Var', 'No': 'Yok'}
 
-# --- TAHMİN FONKSİYONU (Hata Ayıklamalı) ---
-def predict_price(row):
-    try:
-        input_df = pd.DataFrame([{
-            'district': encoders['district'].transform([row['district']])[0],
-            'neighborhood': encoders['neighborhood'].transform([row['neighborhood']])[0],
-            'rooms': row['rooms'], 'halls': row['halls'], 'gross_sqm': row['gross_sqm'],
-            'building_age': row['building_age'], 'floor': row['floor'], 'total_floors': row['total_floors']
-        }])
-        res = model.predict(input_df)[0]
-        # Eğer tahmin eksi çıkarsa mutlak değerini alarak düzelt (Sınırlı Çözüm)
-        return abs(float(res))
-    except Exception as e:
-        st.warning(f"Tahmin Hatası (ID {row['listing_id']}): {e}")
-        return 0.0
-
-# --- YAN MENÜ (NAVİGASYON) ---
-st.sidebar.title("🧭 İstEmlak Navigasyon")
-page = st.sidebar.radio("Gitmek istediğiniz sayfa:", ["🏠 Fırsat Analizi", "📍 İnteraktif Fiyat Haritası"])
+# --- NAVİGASYON ---
+st.sidebar.title("🧭 İstEmlak AI")
+page = st.sidebar.radio("Sayfa Seçin:", ["🏠 Fırsat Analizi", "📍 3D Fiyat Haritası"])
 
 # ---------------------------------------------------------
-# SAYFA 1: FIRSAT ANALİZİ
+# SAYFA 1: ANALİZ
 # ---------------------------------------------------------
 if page == "🏠 Fırsat Analizi":
-    st.title("🔍 Yapay Zeka ile Fırsat Analizi")
-    st.write("Seçtiğiniz bölgedeki ilanların yapay zeka tarafından hesaplanan piyasa değerine göre fırsat skorlarını inceleyebilirsiniz.")
+    st.title("🔍 Akıllı İlan Analizi")
+    ilce = st.sidebar.selectbox("İlçe", sorted(df_raw['district'].unique()))
+    mahalle = st.sidebar.selectbox("Mahalle", sorted(df_raw[df_raw['district'] == ilce]['neighborhood'].unique()))
 
-    with st.sidebar:
-        st.header("📍 Bölge Seçimi")
-        # İlçeleri veri setinden çek
-        available_districts = sorted(df_raw['district'].unique())
-        ilce = st.selectbox("İlçe Seçin", available_districts)
-
-        # Seçilen ilçedeki mahalleleri çek
-        available_neighborhoods = sorted(df_raw[df_raw['district'] == ilce]['neighborhood'].unique())
-        mahalle = st.selectbox("Mahalle Seçin", available_neighborhoods)
-
-        st.divider()
-        min_firsat = st.slider("Minimum Fırsat Skoru (%)", -100, 100, 0)
-
-    # Veriyi filtrele
     filtered = df_raw[(df_raw['district'] == ilce) & (df_raw['neighborhood'] == mahalle)].copy()
 
     if not filtered.empty:
-        # Tahminleri Hesapla
+        def predict_price(row):
+            try:
+                in_df = pd.DataFrame([{
+                    'district': encoders['district'].transform([row['district']])[0],
+                    'neighborhood': encoders['neighborhood'].transform([row['neighborhood']])[0],
+                    'rooms': row['rooms'], 'halls': row['halls'], 'gross_sqm': row['gross_sqm'],
+                    'building_age': row['building_age'], 'floor': row['floor'], 'total_floors': row['total_floors']
+                }])
+                return abs(float(model.predict(in_df)[0]))
+            except: return 0.0
+
         filtered['Tahmin'] = filtered.apply(predict_price, axis=1)
-        # Fırsat Skorunu Hesapla ( (Tahmin - Fiyat) / Tahmin )
         filtered['Fırsat %'] = ((filtered['Tahmin'] - filtered['price']) / filtered['Tahmin'] * 100).round(1)
 
-        # Fırsat skoruna göre filtrele ve sırala
-        filtered = filtered[filtered['Fırsat %'] >= min_firsat].sort_values('Fırsat %', ascending=False)
-
-        if not filtered.empty:
-            # Seçim Listesi Oluştur
-            secim_listesi = filtered.apply(lambda x: f"ID: {x['listing_id']} | {x['price']:,} TL | Fırsat: %{x['Fırsat %']}", axis=1).tolist()
-            secilen_metin = st.selectbox("👉 İncelemek istediğiniz ilanı seçin:", secim_listesi)
-
-            # Seçilen ilanın ID'sini ayıkla
-            sel_id = secilen_metin.split(" | ")[0].split(": ")[1]
-            ev = filtered[filtered['listing_id'] == sel_id].iloc[0]
-
-            # Analiz Sonuçlarını Göster
-            st.markdown("---")
-            c1, c2, c3 = st.columns([1.5, 1, 1])
-
-            with c1:
-                # Hepsiemlak linkini oluştur
-                i_slug, m_slug = slugify(ev['district']), slugify(ev['neighborhood'])
-                url = f"https://www.hepsiemlak.com/istanbul-{i_slug}-{m_slug}-satilik/daire/{ev['listing_id']}"
-                st.markdown(f"""
-                <div style="background-color: #f0f7ff; border-radius: 12px; padding: 20px; border: 1px solid #cfe2ff;">
-                    <h4>🌟 Yapay Zeka Analizi</h4>
-                    <h2 style='color: {"#198754" if ev['Fırsat %'] > 0 else "#dc3545"};'>Fırsat Skoru: %{ev['Fırsat %']}</h2>
-                    <p style="color: #666; font-size: 0.9em;">(Tahmin edilen piyasa değerinin %{ev['Fırsat %']} altında fiyata sahip.)</p>
-                    <a href="{url}" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">🔗 İlanı Kaynağında Gör ↗</a>
-                </div>""", unsafe_allow_html=True)
-
-            with c2:
-                st.metric("İlan Fiyatı", f"{ev['price']:,} TL")
-                st.metric("Net Metrekare", f"{int(ev['net_sqm'])} m²")
-
-            with c3:
-                st.metric("Oda Sayısı", f"{ev['rooms']}+{ev['halls']}")
-                st.metric("ML Piyasa Tahmini", f"{ev['Tahmin']:,.0f} TL")
-
-            # Teknik Detaylar Tablosu
-            st.write("### 🛠️ Evin Teknik Özellikleri")
-            specs = {
-                "Oda": f"{ev['rooms']}+{ev['halls']}",
-                "Kat Bilgisi": f"{ev['floor']} / {ev['total_floors']}",
-                "Bina Yaşı": str(ev['building_age']),
-                "Isınma Tipi": translate.get(ev['heating_type'], ev['heating_type']),
-                "Eşya Durumu": translate.get(ev['furnished'], ev['furnished']),
-                "Kredi Uygunluğu": translate.get(ev['credit_eligible'], ev['credit_eligible']),
-                "Tapu Durumu": translate.get(ev['title_status'], ev['title_status']),
-                "Kullanım Durumu": translate.get(ev['usage_status'], ev['usage_status'])
-            }
-            st.table(pd.DataFrame([specs]).T.rename(columns={0: 'Değer'}))
-        else:
-            st.warning("Seçtiğiniz minimum fırsat skoruna uygun ilan bulunamadı.")
-    else:
-        st.info("Bu mahallede şu an aktif ilan bulunmuyor.")
-
-# ---------------------------------------------------------
-# SAYFA 2: İNTERAKTİF HARİTA
-# ---------------------------------------------------------
-# ---------------------------------------------------------
-# SAYFA 2: İNTERAKTİF HARİTA (3D YOĞUNLUK & FİYAT)
-# ---------------------------------------------------------
-else:
-    st.title("📍 İstanbul 3D Emlak Fiyat & Yoğunluk Haritası")
-    st.write("Harita üzerindeki sütunların yüksekliği o bölgedeki **ilan sayısını**, rengi ise **ilan yoğunluğunu** gösterir.")
-
-    with st.sidebar:
-        st.header("🗺️ Harita Filtreleri")
-
-        # Fiyat Filtresi (Aynı kalabilir)
-        min_price_all = int(df_raw['price'].min())
-        max_price_all = int(df_raw['price'].max())
-        fiyat_filtresi = st.slider("Fiyat Aralığı (TL)",
-                                  min_price_all,
-                                  max_price_all,
-                                  (1000000, 10000000))
+        secilen_ilan = st.selectbox("İlan seçin:", filtered.apply(lambda x: f"ID: {x['listing_id']} | {x['price']:,} TL", axis=1))
+        ev = filtered[filtered['listing_id'] == secilen_ilan.split(" | ")[0].split(": ")[1]].iloc[0]
 
         st.divider()
-        st.write("💡 Haritayı eğmek (3D görmek) için `Sağ Tıklayıp` sürükleyin veya `Ctrl` tuşuna basılı tutarak sürükleyin.")
+        c1, c2, c3 = st.columns([1.5, 1, 1])
+        with c1:
+            st.metric("Fırsat Skoru", f"%{ev['Fırsat %']}")
+            st.write(f"**Konum:** {ev['district']} / {ev['neighborhood']}")
+        with c2:
+            st.metric("İlan Fiyatı", f"{ev['price']:,} TL")
+            st.metric("Piyasa Tahmini", f"{ev['Tahmin']:,.0f} TL")
+        with c3:
+            st.metric("Alan", f"{ev['net_sqm']} m²")
+            st.metric("Oda", f"{ev['rooms']}+{ev['halls']}")
 
-    # Veriyi filtrele
-    map_data = df_raw[(df_raw['price'] >= fiyat_filtresi[0]) & (df_raw['price'] <= fiyat_filtresi[1])]
+# ---------------------------------------------------------
+# SAYFA 2: HARİTA
+# ---------------------------------------------------------
+else:
+    st.title("📍 İstanbul 3D Fiyat Isı Haritası")
 
-# --- GÜNCELLENMİŞ 3D HEXAGON KATMANI ---
+    min_p, max_p = int(df_raw['price'].min()), int(df_raw['price'].max())
+    fiyat_range = st.sidebar.slider("Fiyat Filtresi (TL)", min_p, max_p, (min_p, int(max_p/4)))
+
+    map_data = df_raw[(df_raw['price'] >= fiyat_range[0]) & (df_raw['price'] <= fiyat_range[1])]
+
+    # 3D Hexagon Katmanı
     hexagon_layer = pdk.Layer(
         "HexagonLayer",
         map_data,
         get_position=["lon", "lat"],
-        # Radius'u büyütüyoruz ki ilanlar daha geniş alana yayılsın, sütunlar incelsin
         radius=800,
-        # Elevation scale'i 100'den 10'a düşürüyoruz (Gökdelenleri normal binaya çevirir)
-        elevation_scale=10,
-        elevation_range=[0, 1000],
+        elevation_scale=12,
+        elevation_range=[0, 1500],
         extruded=True,
-        coverage=0.9,
         pickable=True,
+        get_weight="price",
+        aggregation=pdk.types.String("MEAN"), # Fiyatların ortalamasını al
         color_range=[
-            [254, 240, 217],
-            [253, 204, 138],
-            [252, 141, 89],
-            [227, 74, 51],
-            [179, 0, 0]
+            [254, 240, 217], [253, 204, 138], [252, 141, 89], [227, 74, 51], [179, 0, 0]
         ],
     )
-    # Pydeck Harita Ayarları (3D için Eğimli Görünüm)
-    view_state = pdk.ViewState(
-        latitude=41.0112,
-        longitude=28.9784,
-        zoom=10,
-        pitch=60, # 🛠️ YENİ: Haritayı 60 derece eğerek 3D hissini başlatır
-        bearing=0
-    )
 
-    # Haritayı Çiz
     st.pydeck_chart(pdk.Deck(
-        map_style='https://basemaps.cartocdn.com/gl/light-v10/style.json', # CartoDB Açık Tema (Çalışıyor)
-        initial_view_state=view_state,
+        map_style='https://basemaps.cartocdn.com/gl/light-v10/style.json',
+        initial_view_state=pdk.ViewState(latitude=41.0112, longitude=28.9784, zoom=10, pitch=60),
         layers=[hexagon_layer],
         tooltip={
-            "html": "<b>İlan Sayısı:</b> {count} <br/> <b>Konum (İlçe):</b> Bu bölge civarı",
+            "html": """
+                <div style="font-family: sans-serif;">
+                    <b>📊 Bölge Analizi</b><br/>
+                    <b>Ortalama Fiyat:</b> {elevationValue:,.0f} TL<br/>
+                    <b>İlan Sayısı:</b> {count}<br/>
+                </div>
+            """,
             "style": {"backgroundColor": "steelblue", "color": "white"}
         }
     ))
-
-    # İstatistiksel Bilgi
-    st.success(f"Haritada şu an {len(map_data):,} ilan temel alınarak 3 boyutlu yoğunluk modeli oluşturuldu.")
+    st.success(f"Haritada {len(map_data):,} ilan analiz ediliyor.")
