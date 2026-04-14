@@ -197,53 +197,70 @@ if page == "🏠 Fırsat Analizi":
 # ---------------------------------------------------------
 # SAYFA 2: İNTERAKTİF HARİTA
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# SAYFA 2: İNTERAKTİF HARİTA (3D YOĞUNLUK & FİYAT)
+# ---------------------------------------------------------
 else:
-    st.title("📍 İstanbul İnteraktif Fiyat Haritası")
-    st.write("Haritadaki noktaların üzerine gelerek fiyat ve oda bilgisini görebilirsiniz.")
+    st.title("📍 İstanbul 3D Emlak Fiyat & Yoğunluk Haritası")
+    st.write("Harita üzerindeki sütunların yüksekliği o bölgedeki **ilan sayısını**, rengi ise **ilan yoğunluğunu** gösterir.")
 
     with st.sidebar:
         st.header("🗺️ Harita Filtreleri")
 
-        # Fiyat Filtresi
-        min_price = int(df_raw['price'].min())
-        max_price = int(df_raw['price'].max())
-        fiyat_filtresi = st.slider("Fiyat Aralığı (TL)", min_price, max_price, (min_price, int(max_price/2)))
+        # Fiyat Filtresi (Aynı kalabilir)
+        min_price_all = int(df_raw['price'].min())
+        max_price_all = int(df_raw['price'].max())
+        fiyat_filtresi = st.slider("Fiyat Aralığı (TL)",
+                                  min_price_all,
+                                  max_price_all,
+                                  (1000000, 10000000))
 
         st.divider()
-        st.write(f"Şu an {fiyat_filtresi[0]:,} TL - {fiyat_filtresi[1]:,} TL arası ilanlar gösteriliyor.")
+        st.write("💡 Haritayı eğmek (3D görmek) için `Sağ Tıklayıp` sürükleyin veya `Ctrl` tuşuna basılı tutarak sürükleyin.")
 
     # Veriyi filtrele
     map_data = df_raw[(df_raw['price'] >= fiyat_filtresi[0]) & (df_raw['price'] <= fiyat_filtresi[1])]
 
-    # Pydeck Harita Ayarları
+    # --- 🛠️ YENİ: 3D HEXAGON KATMANI (Noktalar yerine Sütunlar) ---
+    hexagon_layer = pdk.Layer(
+        "HexagonLayer",
+        map_data,
+        get_position=["lon", "lat"], #get_data fonksiyonunda atadığımız ilçe koordinatları
+        radius=400,          # Altıgenlerin genişliği (metre). Daha çok nokta için küçült (örn: 200)
+        elevation_scale=100, # Sütunların yükseklik çarpanı. 3D etkiyi artırmak için artır.
+        elevation_range=[0, 3000], # Minimum ve maksimum yükseklik (metre)
+        extruded=True,        # 3 BOYUTU AÇAR
+        coverage=1,
+        pickable=True,        # Bilgi kutusu için şart
+        # Renk Ölçeği (Kırmızıdan Sarıya)
+        color_range=[
+            [254, 240, 217], # En az ilan (Açık sarı)
+            [253, 204, 138],
+            [252, 141, 89],
+            [227, 74, 51],
+            [179, 0, 0]      # En çok ilan (Koyu Kırmızı)
+        ],
+    )
+
+    # Pydeck Harita Ayarları (3D için Eğimli Görünüm)
     view_state = pdk.ViewState(
         latitude=41.0112,
         longitude=28.9784,
         zoom=10,
-        pitch=45,
-    )
-
-    # Scatterplot Katmanı
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        map_data,
-        get_position=["lon", "lat"], # get_data fonksiyonunda oluşturduğumuz sütunlar
-        get_color="[200, 30, 0, 160]", # Kırmızı renk
-        get_radius=200, # Nokta boyutu
-        pickable=True, # Bilgi kutusu için şart
+        pitch=60, # 🛠️ YENİ: Haritayı 60 derece eğerek 3D hissini başlatır
+        bearing=0
     )
 
     # Haritayı Çiz
-# Haritayı Çiz (GÜNCELLENMİŞ VERSİYON)
     st.pydeck_chart(pdk.Deck(
-        # 'light' yerine 'road' veya boş bırakarak standart katmanı deneyelim
-        map_style=None,
+        map_style='https://basemaps.cartocdn.com/gl/light-v10/style.json', # CartoDB Açık Tema (Çalışıyor)
         initial_view_state=view_state,
-        layers=[layer],
+        layers=[hexagon_layer],
         tooltip={
-            "html": "<b>Fiyat:</b> {price} TL <br/> <b>Oda:</b> {rooms}+{halls} <br/> <b>İlçe:</b> {district}",
+            "html": "<b>İlan Sayısı:</b> {count} <br/> <b>Konum (İlçe):</b> Bu bölge civarı",
             "style": {"backgroundColor": "steelblue", "color": "white"}
         }
     ))
+
     # İstatistiksel Bilgi
-    st.success(f"Haritada şu an {len(map_data)} ilan gösteriliyor.")
+    st.success(f"Haritada şu an {len(map_data):,} ilan temel alınarak 3 boyutlu yoğunluk modeli oluşturuldu.")
