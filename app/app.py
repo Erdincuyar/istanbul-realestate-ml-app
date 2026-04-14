@@ -56,9 +56,8 @@ def get_data():
 
         # Noktalar tam üst üste binmesin diye çok küçük rastgele dağılım ekleyelim
         # Bu, aynı ilçedeki ilanların bir bulut gibi görünmesini sağlar
-        df['lat'] += np.random.uniform(-0.005, 0.005, len(df))
-        df['lon'] += np.random.uniform(-0.005, 0.005, len(df))
-
+        df['lat'] += np.random.uniform(-0.02, 0.02, len(df))
+        df['lon'] += np.random.uniform(-0.02, 0.02, len(df))
     int_cols = ['building_age', 'floor', 'total_floors', 'rooms', 'halls']
     for col in int_cols:
         if col in df.columns:
@@ -221,27 +220,27 @@ else:
     # Veriyi filtrele
     map_data = df_raw[(df_raw['price'] >= fiyat_filtresi[0]) & (df_raw['price'] <= fiyat_filtresi[1])]
 
-    # --- 🛠️ YENİ: 3D HEXAGON KATMANI (Noktalar yerine Sütunlar) ---
+# --- GÜNCELLENMİŞ 3D HEXAGON KATMANI ---
     hexagon_layer = pdk.Layer(
         "HexagonLayer",
         map_data,
-        get_position=["lon", "lat"], #get_data fonksiyonunda atadığımız ilçe koordinatları
-        radius=400,          # Altıgenlerin genişliği (metre). Daha çok nokta için küçült (örn: 200)
-        elevation_scale=100, # Sütunların yükseklik çarpanı. 3D etkiyi artırmak için artır.
-        elevation_range=[0, 3000], # Minimum ve maksimum yükseklik (metre)
-        extruded=True,        # 3 BOYUTU AÇAR
-        coverage=1,
-        pickable=True,        # Bilgi kutusu için şart
-        # Renk Ölçeği (Kırmızıdan Sarıya)
+        get_position=["lon", "lat"],
+        # Radius'u büyütüyoruz ki ilanlar daha geniş alana yayılsın, sütunlar incelsin
+        radius=800,
+        # Elevation scale'i 100'den 10'a düşürüyoruz (Gökdelenleri normal binaya çevirir)
+        elevation_scale=10,
+        elevation_range=[0, 1000],
+        extruded=True,
+        coverage=0.9,
+        pickable=True,
         color_range=[
-            [254, 240, 217], # En az ilan (Açık sarı)
+            [254, 240, 217],
             [253, 204, 138],
             [252, 141, 89],
             [227, 74, 51],
-            [179, 0, 0]      # En çok ilan (Koyu Kırmızı)
+            [179, 0, 0]
         ],
     )
-
     # Pydeck Harita Ayarları (3D için Eğimli Görünüm)
     view_state = pdk.ViewState(
         latitude=41.0112,
