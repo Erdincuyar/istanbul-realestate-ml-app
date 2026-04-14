@@ -2,21 +2,18 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
-import re
 import pydeck as pdk
 import numpy as np
 
 # --- SAYFA AYARLARI ---
-st.set_page_config(page_title="İstEmlak-AI | Analiz", layout="wide")
+st.set_page_config(page_title="İstEmlak-AI | İstanbul Haritası", layout="wide")
 
 # --- DOSYA YOLLARI ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(current_dir)
-MODEL_PATH = os.path.join(base_dir, "models", "xgboost_model.joblib")
-ENCODER_PATH = os.path.join(base_dir, "models", "encoders.joblib")
 DATA_PATH = os.path.join(base_dir, "data", "istanbul_apartment_prices_2026.csv")
 
-# --- KOORDİNAT VERİSİ ---
+# --- İSTANBUL İLÇE KOORDİNATLARI (Merkezler) ---
 ISTANBUL_COORDS = {
     'Adalar': [40.8732, 29.1278], 'Arnavutköy': [41.1852, 28.7400], 'Ataşehir': [40.9928, 29.1244],
     'Avcılar': [40.9801, 28.7175], 'Bağcılar': [41.0343, 28.8336], 'Bahçelievler': [40.9990, 28.8637],
@@ -34,72 +31,58 @@ ISTANBUL_COORDS = {
 }
 
 @st.cache_data
-def get_data():
+def get_clean_data():
     df = pd.read_csv(DATA_PATH)
-    if 'lat' not in df.columns:
-        df['lat'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[0])
-        df['lon'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[1])
-        df['lat'] += np.random.uniform(-0.02, 0.02, len(df))
-        df['lon'] += np.random.uniform(-0.02, 0.02, len(df))
+    # Her ilana ilçesine göre koordinat ver ve ilanları birbirinden ayır (scatter)
+    df['lat'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[0])
+    df['lon'] = df['district'].map(lambda x: ISTANBUL_COORDS.get(x, [41.0112, 28.9416])[1])
+    # Noktaların üst üste binmemesi için küçük bir dağılım
+    df['lat'] += np.random.uniform(-0.015, 0.015, len(df))
+    df['lon'] += np.random.uniform(-0.015, 0.015, len(df))
+    # Fiyatı okunabilir formatta hazırlayalım
+    df['fiyat_text'] = df['price'].apply(lambda x: f"{x:,} TL")
     return df
 
-model, encoders = joblib.load(MODEL_PATH), joblib.load(ENCODER_PATH)
-df_raw = get_data()
+df = get_clean_data()
 
-# --- NAVİGASYON ---
-page = st.sidebar.radio("Sayfa:", ["🏠 Fırsat Analizi", "📍 3D Isı Haritası"])
+st.title("📍 İstanbul İnteraktif Fiyat Haritası")
 
-if page == "🏠 Fırsat Analizi":
-    st.title("🔍 Akıllı İlan Analizi")
-    ilce = st.sidebar.selectbox("İlçe", sorted(df_raw['district'].unique()))
-    mahalle = st.sidebar.selectbox("Mahalle", sorted(df_raw[df_raw['district'] == ilce]['neighborhood'].unique()))
-    filtered = df_raw[(df_raw['district'] == ilce) & (df_raw['neighborhood'] == mahalle)].copy()
+# --- FİLTRELEME ---
+with st.sidebar:
+    st.header("🔍 Filtreler")
+    fiyat_araligi = st.slider("Fiyat Aralığı (TL)",
+                             int(df.price.min()),
+                             int(df.price.max()),
+                             (1000000, 15000000))
 
-    if not filtered.empty:
-        def quick_predict(row):
-            in_df = pd.DataFrame([{
-                'district': encoders['district'].transform([row['district']])[0],
-                'neighborhood': encoders['neighborhood'].transform([row['neighborhood']])[0],
-                'rooms': row['rooms'], 'halls': row['halls'], 'gross_sqm': row['gross_sqm'],
-                'building_age': row['building_age'], 'floor': row['floor'], 'total_floors': row['total_floors']
-            }])
-            return abs(float(model.predict(in_df)[0]))
+filtered_df = df[(df.price >= fiyat_araligi[0]) & (df.price <= fiyat_araligi[1])]
 
-        filtered['Tahmin'] = filtered.apply(quick_predict, axis=1)
-        filtered['Fırsat %'] = ((filtered['Tahmin'] - filtered['price']) / filtered['Tahmin'] * 100).round(1)
-        secim = st.selectbox("İlanlar:", filtered.apply(lambda x: f"ID: {x['listing_id']} | {x['price']:,} TL", axis=1))
-        ev = filtered[filtered['listing_id'] == secim.split(" | ")[0].split(": ")[1]].iloc[0]
+# --- HARİTA GÖRÜNÜMÜ (SCATTERPLOT) ---
+# En stabil ve ilçe isimlerini gösteren katman budur.
+layer = pdk.Layer(
+    "ScatterplotLayer",
+    filtered_df,
+    get_position=["lon", "lat"],
+    get_color="[200, 30, 0, 160]", # Kırmızı noktalar
+    get_radius=180,
+    pickable=True,
+)
 
-        c1, c2 = st.columns(2)
-        c1.metric("Piyasa Tahmini", f"{ev['Tahmin']:,.0f} TL")
-        c2.metric("Fırsat Skoru", f"%{ev['Fırsat %']}")
+view_state = pdk.ViewState(latitude=41.01, longitude=28.97, zoom=10, pitch=0)
 
-else:
-    st.title("📍 İstanbul 3D Fiyat Isı Haritası")
-    fiyat_range = st.sidebar.slider("Fiyat (TL)", int(df_raw.price.min()), int(df_raw.price.max()), (1000000, 15000000))
-    map_data = df_raw[(df_raw.price >= fiyat_range[0]) & (df_raw.price <= fiyat_range[1])]
+st.pydeck_chart(pdk.Deck(
+    map_style='mapbox://styles/mapbox/dark-v10', # Siyah şık harita
+    initial_view_state=view_state,
+    layers=[layer],
+    tooltip={
+        "html": """
+            <b>İlçe:</b> {district} <br/>
+            <b>Mahalle:</b> {neighborhood} <br/>
+            <b>Fiyat:</b> {fiyat_text} <br/>
+            <b>Oda:</b> {rooms}+{halls}
+        """,
+        "style": {"backgroundColor": "steelblue", "color": "white"}
+    }
+))
 
-    # --- KESİN ÇÖZÜM KATMANI ---
-    layer = pdk.Layer(
-        "HexagonLayer",
-        map_data,
-        get_position=["lon", "lat"],
-        radius=700,
-        elevation_scale=15,
-        elevation_range=[0, 1000],
-        extruded=True,
-        pickable=True,
-        get_weight="price",
-        aggregation=pdk.types.String("MEAN")
-    )
-
-    # Arka planı koyu (dark) yaparak sütunların parlamasını sağlıyoruz
-    st.pydeck_chart(pdk.Deck(
-        map_style="mapbox://styles/mapbox/dark-v10",
-        initial_view_state=pdk.ViewState(latitude=41.01, longitude=28.97, zoom=10, pitch=50),
-        layers=[layer],
-        tooltip={
-            "html": "<b>Yoğunluk:</b> {count} ilan<br><b>Ort. Fiyat:</b> {elevationValue} TL",
-            "style": {"color": "white"}
-        }
-    ))
+st.info(f"Şu an haritada {len(filtered_df):,} ilan listeleniyor.")
