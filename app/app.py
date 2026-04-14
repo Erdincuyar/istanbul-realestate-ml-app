@@ -7,41 +7,34 @@ import re
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İstEmlak-AI | ML Fırsat Dedektörü", layout="wide")
 
-# --- DOSYA YOLLARI SİSTEMİ (Hata Önleyici) ---
-# app.py'nin bulunduğu klasörü bulur (app/)
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Bir üst klasöre çıkarak models ve data klasörlerine gider
-BASE_DIR = os.path.dirname(CURRENT_DIR)
+# --- DOSYA YOLLARI SİSTEMİ (Garantili Yöntem) ---
+# app.py'nin o anki gerçek konumunu bulur
+current_file_path = os.path.abspath(__file__)
+# app/ klasörünü bulur
+app_dir = os.path.dirname(current_file_path)
+# Ana proje klasörüne (istanbul-realestate-ml-app) çıkar
+base_dir = os.path.dirname(app_dir)
 
-MODEL_PATH = os.path.join(BASE_DIR, "models", "xgboost_model.joblib")
-ENCODER_PATH = os.path.join(BASE_DIR, "models", "encoders.joblib")
-DATA_PATH = os.path.join(BASE_DIR, "data", "istanbul_apartment_prices_2026.csv")
+# Dosyaların tam yerini oluşturur
+MODEL_PATH = os.path.join(base_dir, "models", "xgboost_model.joblib")
+ENCODER_PATH = os.path.join(base_dir, "models", "encoders.joblib")
+DATA_PATH = os.path.join(base_dir, "data", "istanbul_apartment_prices_2026.csv")
 
-# --- ASSET YÜKLEME ---
-@st.cache_resource
-def load_ml():
-    # Eğer dosyalar bulunamazsa kullanıcıya net bir hata mesajı gösterir
-    if not os.path.exists(MODEL_PATH) or not os.path.exists(ENCODER_PATH):
-        st.error(f"Model dosyaları bulunamadı! Aranan konum: {MODEL_PATH}")
-        st.stop()
-    return joblib.load(MODEL_PATH), joblib.load(ENCODER_PATH)
+# CSS: Modern Tasarım
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: white; padding: 15px; border-radius: 12px; border: 1px solid #eee; }
+    .firsat-box {
+        background-color: #f0f7ff;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #cfe2ff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-@st.cache_data
-def get_data():
-    if not os.path.exists(DATA_PATH):
-        st.error(f"Veri dosyası bulunamadı! Aranan konum: {DATA_PATH}")
-        st.stop()
-    df = pd.read_csv(DATA_PATH)
-    int_cols = ['building_age', 'floor', 'total_floors', 'rooms', 'halls']
-    for col in int_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-    return df
-
-# Modeli ve Veriyi Yükle
-model, encoders = load_ml()
-df_raw = get_data()
-
-# --- YARDIMCI FONKSİYON: SEO LİNK ---
+# --- YARDIMCI FONKSİYONLAR ---
 def slugify(text):
     text = str(text).lower()
     tr_map = str.maketrans("çğıöşü ", "cgiosu-")
@@ -49,15 +42,44 @@ def slugify(text):
     text = re.sub(r'[^a-z0-9-]', '', text)
     return text
 
+# --- ASSET YÜKLEME ---
+@st.cache_resource
+def load_ml():
+    if not os.path.exists(MODEL_PATH) or not os.path.exists(ENCODER_PATH):
+        st.error(f"MODEL BULUNAMADI! Aranan yer: {MODEL_PATH}")
+        st.stop()
+    return joblib.load(MODEL_PATH), joblib.load(ENCODER_PATH)
+
+@st.cache_data
+def get_data():
+    if not os.path.exists(DATA_PATH):
+        st.error(f"VERİ DOSYASI BULUNAMADI! Aranan yer: {DATA_PATH}")
+        st.stop()
+    df = pd.read_csv(DATA_PATH)
+    # Sayısal sütunlardaki .0 hatasını gidermek için tam sayıya çeviriyoruz
+    int_cols = ['building_age', 'floor', 'total_floors', 'rooms', 'halls']
+    for col in int_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+    return df
+
+# Modeli ve Veriyi Yükle
+try:
+    model, encoders = load_ml()
+    df_raw = get_data()
+except Exception as e:
+    st.error(f"Yükleme sırasında hata oluştu: {e}")
+    st.stop()
+
 # --- TÜRKÇE ÇEVİRİ SÖZLÜĞÜ ---
 translate = {
     'Furnished': 'Eşyalı', 'Unfurnished': 'Eşyasız',
     'Vacant': 'Boş', 'Occupied by Owner': 'Mülk Sahibi Oturuyor', 'Occupied by Tenant': 'Kiracılı',
     'Eligible': 'Uygun', 'Not Eligible': 'Uygun Değil',
     'Combi Boiler': 'Kombi', 'Air Conditioning': 'Klima', 'Central Heating': 'Merkezi Sistem',
-    'Underfloor Heating': 'Yerden Isıtma', 'Natural Gas': 'Doğalgaz',
+    'Underfloor Heating': 'Yerden Isıtma', 'Natural Gas': 'Doğalgaz', 'Stove': 'Soba',
     'Land Title': 'Arsa Tapulu', 'Construction Easement': 'Kat İrtifaklı',
     'Condominium Title': 'Kat Mülkiyetli', 'No Title Deed': 'Tapu Yok',
+    'Shared Title': 'Hisseli Tapu',
     'Yes': 'Var', 'No': 'Yok'
 }
 
@@ -81,6 +103,7 @@ with st.sidebar:
     st.divider()
     min_firsat = st.slider("Minimum Fırsat Skoru (%)", -50, 50, 0)
 
+# Filtreleme ve Tahmin
 filtered = df_raw[(df_raw['district'] == ilce) & (df_raw['neighborhood'] == mahalle)].copy()
 
 if not filtered.empty:
@@ -100,12 +123,13 @@ if not filtered.empty:
         col1, col2, col3 = st.columns([1.5, 1, 1])
 
         with col1:
+            # SEO Uyumlu Dinamik Link
             ilce_slug = slugify(ev['district'])
             mahalle_slug = slugify(ev['neighborhood'])
             hepsiemlak_url = f"https://www.hepsiemlak.com/istanbul-{ilce_slug}-{mahalle_slug}-satilik/daire/{ev['listing_id']}"
 
             st.markdown(f"""
-            <div style="background-color: #f0f7ff; border-radius: 12px; padding: 20px; border: 1px solid #cfe2ff;">
+            <div class="firsat-box">
                 <h4 style='margin-top:0; color: #555;'>🌟 Yapay Zeka Analizi</h4>
                 <h2 style='color: {"#198754" if ev['Fırsat %'] > 0 else "#dc3545"}; margin: 5px 0;'>
                     Fırsat Skoru: %{ev['Fırsat %']}
@@ -142,6 +166,6 @@ if not filtered.empty:
         }
         st.table(pd.DataFrame([specs]).T.rename(columns={0: 'Değer'}))
     else:
-        st.warning("Fırsat skoruna uygun ilan bulunamadı.")
+        st.warning("Seçtiğiniz fırsat skoruna uygun ilan bulunamadı.")
 else:
-    st.warning("Bu bölgede ilan bulunamadı.")
+    st.warning("Bu bölgede arama kriterlerine uygun ilan bulunamadı.")
