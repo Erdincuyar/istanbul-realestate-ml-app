@@ -234,8 +234,10 @@ else:
     )
 
     # Haritayı Çiz
+# Haritayı Çiz (GÜNCELLENMİŞ VERSİYON)
     st.pydeck_chart(pdk.Deck(
-        map_style='mapbox://styles/mapbox/light-v10', # Açık renk harita teması
+        # 'light' yerine 'road' veya boş bırakarak standart katmanı deneyelim
+        map_style=None,
         initial_view_state=view_state,
         layers=[layer],
         tooltip={
@@ -243,6 +245,5 @@ else:
             "style": {"backgroundColor": "steelblue", "color": "white"}
         }
     ))
-
     # İstatistiksel Bilgi
     st.success(f"Haritada şu an {len(map_data)} ilan gösteriliyor.")
