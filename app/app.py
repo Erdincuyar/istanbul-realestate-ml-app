@@ -1,10 +1,11 @@
 import sys
 import os
 
-# repo kökünü path'e ekle (fiyat_tahmin_pipeline import için)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
+import requests
+import anthropic
 import streamlit as st
 from fiyat_tahmin_pipeline import tahmin_et, ARTIFACT_DIR
 
@@ -42,6 +43,12 @@ with st.expander("Model Performansı", expanded=False):
     c2.metric("CV-MAPE", f"%{cfg.get('cv_mape_pct', '—')}")
 
 st.divider()
+
+# ── Session state ──────────────────────────────────────────────────────────────
+if "sonuc" not in st.session_state:
+    st.session_state.sonuc = None
+if "ozellikler" not in st.session_state:
+    st.session_state.ozellikler = None
 
 # ── Form ───────────────────────────────────────────────────────────────────────
 with st.form("tahmin_form"):
@@ -111,15 +118,15 @@ with st.form("tahmin_form"):
         return st.selectbox(label, options=opts, index=idx)
 
     with col3:
-        heating_type       = _select("Isınma Tipi",       "heating_type")
-        furnished          = _select("Eşya Durumu",       "furnished")
-        usage_status       = _select("Kullanım Durumu",   "usage_status")
-        orientation        = _select("Cephe",             "orientation")
+        heating_type       = _select("Isınma Tipi",     "heating_type")
+        furnished          = _select("Eşya Durumu",     "furnished")
+        usage_status       = _select("Kullanım Durumu", "usage_status")
+        orientation        = _select("Cephe",           "orientation")
 
     with col4:
-        building_type      = _select("Yapı Tipi",         "building_type")
-        building_condition = _select("Yapı Durumu",       "building_condition")
-        floor_category     = _select("Kat Kategorisi",    "floor_category")
+        building_type      = _select("Yapı Tipi",       "building_type")
+        building_condition = _select("Yapı Durumu",     "building_condition")
+        floor_category     = _select("Kat Kategorisi",  "floor_category")
 
     submitted = st.form_submit_button("💰 Fiyat Tahmin Et", use_container_width=True)
 
@@ -148,10 +155,16 @@ if submitted:
 
     with st.spinner("Hesaplanıyor..."):
         try:
-            sonuc = tahmin_et(ozellikler)
+            st.session_state.sonuc      = tahmin_et(ozellikler)
+            st.session_state.ozellikler = ozellikler
         except Exception as e:
             st.error(f"Tahmin hatası: {e}")
             st.stop()
+
+# ── Sonuç göster ───────────────────────────────────────────────────────────────
+if st.session_state.sonuc:
+    sonuc      = st.session_state.sonuc
+    ozellikler = st.session_state.ozellikler
 
     st.divider()
     st.subheader("Tahmin Sonucu")
@@ -160,5 +173,101 @@ if submitted:
     c1.metric("Alt Sınır (%10)", sonuc["alt_sinir_fmt"])
     c2.metric("Nokta Tahmin (%50)", sonuc["tahmin_fmt"])
     c3.metric("Üst Sınır (%90)", sonuc["ust_sinir_fmt"])
-
     st.success(f"**Fiyat Aralığı:** {sonuc['aralik']}")
+
+    st.divider()
+
+    # ── AI Analizi ─────────────────────────────────────────────────────────────
+    if st.button("🤖 AI ile Konum & Fiyat Analizi Üret", use_container_width=True):
+
+        # API anahtarları
+        try:
+            serper_key    = st.secrets["SERPER_API_KEY"]
+            anthropic_key = st.secrets["ANTHROPIC_API_KEY"]
+        except KeyError as e:
+            st.error(f"Streamlit secrets içinde {e} bulunamadı.")
+            st.stop()
+
+        mahalle = ozellikler["neighborhood"]
+        ilce    = ozellikler["district"]
+
+        # ── Serper: mahalle → ilçe → boş waterfall ────────────────────────────
+        def serper_ara(query: str) -> list:
+            try:
+                r = requests.post(
+                    "https://google.serper.dev/search",
+                    headers={
+                        "X-API-KEY"   : serper_key,
+                        "Content-Type": "application/json",
+                    },
+                    json={"q": query, "gl": "tr", "hl": "tr", "num": 5},
+                    timeout=10,
+                )
+                return [
+                    item["snippet"]
+                    for item in r.json().get("organic", [])
+                    if item.get("snippet")
+                ]
+            except Exception:
+                return []
+
+        with st.spinner("Bölge bilgisi aranıyor..."):
+            snippets = serper_ara(
+                f"{mahalle} {ilce} İstanbul yatırım ulaşım değer proje"
+            )
+            kaynak = f"{mahalle}, {ilce}"
+
+            if len(snippets) < 2:
+                snippets = serper_ara(
+                    f"{ilce} İstanbul emlak yatırım değer proje"
+                )
+                kaynak = ilce
+
+        bolge_metni = "\n".join(snippets) if snippets else ""
+
+        # ── Claude prompt ──────────────────────────────────────────────────────
+        prompt = f"""İstanbul'da satılık bir daire için fiyat ve konum analizi yaz. Türkçe yaz. 3-4 paragraf olsun.
+
+EV ÖZELLİKLERİ:
+- Konum: {mahalle}, {ilce}
+- Brüt m²: {ozellikler['gross_sqm']} | Net m²: {ozellikler['net_sqm']}
+- Oda: {ozellikler['total_rooms']} | Banyo: {ozellikler['bathroom_count']}
+- Kat: {ozellikler['floor']}/{ozellikler['total_floors']} | Bina yaşı: {ozellikler['building_age']} yıl
+- Isınma: {ozellikler['heating_type']} | Eşya: {ozellikler['furnished']}
+- Site: {"Evet" if ozellikler['is_in_complex'] else "Hayır"} | Aidat: {ozellikler['maintenance_fee']} TL/ay
+
+FİYAT TAHMİNİ (XGBoost Quantile modeli):
+- Alt sınır (%10): {sonuc['alt_sinir_fmt']}
+- Nokta tahmin (%50): {sonuc['tahmin_fmt']}
+- Üst sınır (%90): {sonuc['ust_sinir_fmt']}
+
+BÖLGE BİLGİSİ ({kaynak} bazında web araması):
+{bolge_metni if bolge_metni else "Web aramasından yeterli veri bulunamadı."}
+
+KURALLAR:
+- Fiyatın neden makul olduğunu açıkla
+- Bölgenin yatırım potansiyelini ve değer artışını değerlendir
+- Ulaşım, sosyal çevre ve çevredeki projelere değin (varsa)
+- Bölge bilgisi yoksa sadece ev özelliklerinden yorum yap
+- Bilmediğin ya da verilmeyen bilgileri uydurma
+"""
+
+        with st.spinner("AI analizi yazılıyor..."):
+            try:
+                client   = anthropic.Anthropic(api_key=anthropic_key)
+                message  = client.messages.create(
+                    model      = "claude-sonnet-4-6",
+                    max_tokens = 1024,
+                    messages   = [{"role": "user", "content": prompt}],
+                )
+                analiz = message.content[0].text
+            except Exception as e:
+                st.error(f"Claude API hatası: {e}")
+                st.stop()
+
+        st.subheader("📍 Konum & Fiyat Analizi")
+        if bolge_metni:
+            st.caption(f"Bölge verisi: {kaynak} bazında web araması")
+        else:
+            st.caption("Web verisi bulunamadı — ev özelliklerine göre analiz yapıldı")
+        st.write(analiz)

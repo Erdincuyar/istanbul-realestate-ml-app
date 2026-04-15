@@ -4,3 +4,5 @@ scikit-learn
 xgboost
 streamlit
 plotly
+anthropic
+requests

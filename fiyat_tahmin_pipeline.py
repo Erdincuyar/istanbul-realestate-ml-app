@@ -310,7 +310,7 @@ def model_egit_ve_kaydet(df, target_enc, ord_enc, te_cols, ord_cols, imputer_val
               encoding="utf-8") as fp:
         json.dump(config, fp, ensure_ascii=False, indent=2, default=str)
 
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print("Artifactlar kaydedildi:")
     for fname in sorted(os.listdir(ARTIFACT_DIR)):
         size = os.path.getsize(os.path.join(ARTIFACT_DIR, fname))
