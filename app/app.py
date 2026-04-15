@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
 import requests
-import anthropic
+from google import genai
 import streamlit as st
 from fiyat_tahmin_pipeline import tahmin_et, ARTIFACT_DIR
 
@@ -182,8 +182,8 @@ if st.session_state.sonuc:
 
         # API anahtarları
         try:
-            serper_key    = st.secrets["SERPER_API_KEY"]
-            anthropic_key = st.secrets["ANTHROPIC_API_KEY"]
+            gemini_key = st.secrets["GEMINI_API_KEY"]
+            serper_key = st.secrets.get("SERPER_API_KEY", "")
         except KeyError as e:
             st.error(f"Streamlit secrets içinde {e} bulunamadı.")
             st.stop()
@@ -254,15 +254,14 @@ KURALLAR:
 
         with st.spinner("AI analizi yazılıyor..."):
             try:
-                client   = anthropic.Anthropic(api_key=anthropic_key)
-                message  = client.messages.create(
-                    model      = "claude-sonnet-4-6",
-                    max_tokens = 1024,
-                    messages   = [{"role": "user", "content": prompt}],
+                client = genai.Client(api_key=gemini_key)
+                yanit  = client.models.generate_content(
+                    model="gemini-1.5-flash-latest",
+                    contents=prompt,
                 )
-                analiz = message.content[0].text
+                analiz = yanit.text
             except Exception as e:
-                st.error(f"Claude API hatası: {e}")
+                st.error(f"Gemini API hatası: {e}")
                 st.stop()
 
         st.subheader("📍 Konum & Fiyat Analizi")

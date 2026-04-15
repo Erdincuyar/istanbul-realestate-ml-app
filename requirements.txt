@@ -4,5 +4,5 @@ scikit-learn
 xgboost
 streamlit
 plotly
-anthropic
+google-genai
 requests

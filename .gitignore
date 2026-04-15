@@ -13,3 +13,6 @@ data/*.xlsx
 # Modeller (Büyük dosyalar olduğu için genellikle yüklenmez)
 models/*.joblib
 models/*.pkl
+
+# Streamlit secrets (API anahtarları - asla repoya ekleme!)
+.streamlit/secrets.toml
