@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pandas as pd; df = pd.read_csv\\('c:/Users/lenova/code/Kaydomaydo/first_repo/istanbul-realestate-ml-app/istanbul_apartment_prices_2026.csv'\\); print\\(df.dtypes\\); print\\('\\\\nNull counts:\\\\n', df.isnull\\(\\).sum\\(\\)\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 python fiyat_tahmin_pipeline.py --egit)",
+      "Bash(PYTHONIOENCODING=utf-8 python fiyat_tahmin_pipeline.py --tahmin-json \"{\\\\\"district\\\\\":\\\\\"Kadikoy\\\\\",\\\\\"neighborhood\\\\\":\\\\\"Bostanci\\\\\",\\\\\"gross_sqm\\\\\":100,\\\\\"net_sqm\\\\\":85,\\\\\"total_rooms\\\\\":3,\\\\\"floor\\\\\":5,\\\\\"total_floors\\\\\":8,\\\\\"building_age\\\\\":12,\\\\\"bathroom_count\\\\\":2,\\\\\"is_in_complex\\\\\":1,\\\\\"heating_type\\\\\":\\\\\"Combi Boiler\\\\\",\\\\\"furnished\\\\\":\\\\\"Unfurnished\\\\\",\\\\\"usage_status\\\\\":\\\\\"Vacant\\\\\",\\\\\"building_type\\\\\":\\\\\"Reinforced Concrete\\\\\",\\\\\"building_condition\\\\\":\\\\\"Second-hand\\\\\"}\")",
+      "Bash(PYTHONIOENCODING=utf-8 python model_performans_gorsel.py)"
+    ]
+  }
+}
