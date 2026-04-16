@@ -184,6 +184,13 @@ def fmt_tl(v):
     return f"{v / 1_000:.0f}K ₺"
 
 
+def slugify(text: str) -> str:
+    text = str(text).lower()
+    text = text.translate(str.maketrans("çğıöşü ", "cgiosu-"))
+    text = re.sub(r'[^a-z0-9-]', '', text)
+    return text
+
+
 def md2html(text: str) -> str:
     """**bold** → <strong>bold</strong>, satır sonu → <br>"""
     text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
@@ -520,11 +527,20 @@ with tab1:
                 with d1:
                     durum_text = "📈 İlan fiyatı piyasa değerinin altında — potansiyel fırsat" \
                                  if firsat > 0 else "📉 İlan fiyatı piyasa değerinin üzerinde"
-                    konum   = f"{ev['district']} / {ev['neighborhood']}"
+                    konum      = f"{ev['district']} / {ev['neighborhood']}"
+                    ilan_url   = (
+                        f"https://www.hepsiemlak.com/istanbul-"
+                        f"{slugify(ev['district'])}-{slugify(ev['neighborhood'])}"
+                        f"-satilik/daire/{ev['listing_id']}"
+                    )
                     icerik  = (
                         f'{firsat_badge(firsat)}'
                         f'<p style="margin:10px 0 4px;color:#374151;font-weight:600;font-size:14px;">{konum}</p>'
                         f'<p style="margin:0;font-size:12px;color:#6B7280;">{durum_text}</p>'
+                        f'<hr style="margin:12px 0;border-color:#E2E8F0;">'
+                        f'<a href="{ilan_url}" target="_blank" '
+                        f'style="color:#1A56DB;font-weight:600;font-size:13px;text-decoration:none;">'
+                        f'🔗 İlanı Kaynağında Gör ↗</a>'
                     )
                     st.markdown(corp_card("ML FIRSAT ANALİZİ", icerik), unsafe_allow_html=True)
 
