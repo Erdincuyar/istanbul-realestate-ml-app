@@ -12,8 +12,9 @@ import xgboost as xgb
 import streamlit as st
 from fiyat_tahmin_pipeline import ARTIFACT_DIR
 
-ROOT_DIR  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VERI_YOLU = os.path.join(ROOT_DIR, "istanbul_apartment_prices_2026.csv")
+ROOT_DIR       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VERI_YOLU      = os.path.join(ROOT_DIR, "istanbul_apartment_prices_2026.csv")
+ULTIMATE_YOLU  = os.path.join(ROOT_DIR, "istanbul_emlak_ULTIMATE_2026.csv")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -23,152 +24,281 @@ VERI_YOLU = os.path.join(ROOT_DIR, "istanbul_apartment_prices_2026.csv")
 CORPORATE_CSS = """
 <style>
 /* ── Genel arka plan & font ─────────────────────────────────────────── */
-html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
-.stApp { background-color: #F0F4F8; }
+html { font-size: 22px; }
+body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; color: #EEEEEE; font-size: 22px; }
+.stApp { background-color: #1E1E1E; }
+.main .block-container { background-color: #1E1E1E; }
+
+/* ── Global yazı boyutu & renk ───────────────────────────────────────── */
+* { font-size: 22px !important; line-height: 1.8 !important; color: #EEEEEE !important; }
+h1, h2, h3 { font-size: 32px !important; }
+h4, h5, h6 { font-size: 26px !important; }
+[data-testid="stMetricLabel"] { font-size: 16px !important; }
+[data-testid="stMetricValue"] { font-size: 36px !important; font-weight: 800 !important; }
+.stTabs [data-baseweb="tab"] { font-size: 20px !important; padding: 14px 30px !important; }
+.section-title { font-size: 24px !important; }
+.corp-card-title { font-size: 15px !important; }
+.stButton > button { font-size: 22px !important; }
+[data-testid="stDataFrame"] * { font-size: 18px !important; }
 
 /* ── Üst başlık ─────────────────────────────────────────────────────── */
 .corp-header {
-    background: linear-gradient(135deg, #0F2A4A 0%, #1A56DB 100%);
-    padding: 28px 32px;
-    border-radius: 14px;
-    margin-bottom: 24px;
+    background: linear-gradient(135deg, #3A3A3A 0%, #5A5A5A 100%);
+    padding: 32px 36px;
+    border-radius: 16px;
+    margin-bottom: 28px;
     color: white;
+    box-shadow: 0 4px 20px rgba(192,57,43,.35);
 }
-.corp-header h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
-.corp-header p  { margin: 6px 0 0; font-size: 14px; opacity: 0.8; }
+.corp-header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+.corp-header p  { margin: 8px 0 0; font-size: 14px; opacity: 0.75; }
 
 /* ── Sekmeler ────────────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
-    background: #FFFFFF;
-    border-radius: 10px;
+    background: #2A2A2A;
+    border-radius: 12px;
     padding: 6px;
     gap: 4px;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #3A3A3A;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3);
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 7px;
-    padding: 8px 20px;
-    font-weight: 500;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-weight: 600;
     font-size: 14px;
-    color: #64748B;
+    color: #AAAAAA;
     border: none !important;
+    transition: background .15s;
 }
 .stTabs [aria-selected="true"] {
-    background: #1A56DB !important;
+    background: #C0392B !important;
     color: white !important;
 }
 
 /* ── Metrik kartlar ──────────────────────────────────────────────────── */
 [data-testid="stMetric"] {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
-    padding: 16px 20px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    background: #2A2A2A;
+    border: 1px solid #3A3A3A;
+    border-top: 3px solid #C0392B;
+    border-radius: 12px;
+    padding: 18px 22px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.3);
 }
-[data-testid="stMetricLabel"] { font-size: 12px; color: #64748B; font-weight: 500; }
-[data-testid="stMetricValue"] { font-size: 22px; font-weight: 700; color: #0F2A4A; }
+[data-testid="stMetricLabel"] { font-size: 12px; color: #AAAAAA; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+[data-testid="stMetricValue"] { font-size: 24px; font-weight: 800; color: #FFFFFF; }
 
 /* ── Butonlar ────────────────────────────────────────────────────────── */
+.stButton { display: flex; justify-content: center; }
 .stButton > button {
-    background: #1A56DB;
+    background: #C0392B;
     color: white;
     border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 14px;
-    padding: 10px 20px;
-    transition: background .2s;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    padding: 12px 28px;
+    width: fit-content !important;
+    min-width: 0 !important;
+    max-width: 360px !important;
+    transition: background .2s, transform .1s;
+    letter-spacing: .2px;
 }
-.stButton > button:hover { background: #1348C0; color: white; }
+.stButton > button:hover { background: #A93226; color: white; transform: translateY(-1px); }
+.stButton > button:active { transform: translateY(0); }
 
-/* ── Form elemanları ─────────────────────────────────────────────────── */
-[data-testid="stSelectbox"] > div,
-[data-testid="stNumberInput"] > div > div > input {
-    border-radius: 8px;
-    border-color: #CBD5E1;
+/* ── Genel markdown yazı boyutu ──────────────────────────────────────── */
+.stMarkdown p, .stMarkdown li { font-size: 15px; line-height: 1.75; }
+[data-testid="stMarkdownContainer"] p { font-size: 15px; }
+
+/* ── Selectbox & form elemanları ─────────────────────────────────────── */
+[data-testid="stSelectbox"] > div > div,
+[data-baseweb="select"] > div,
+[data-baseweb="select"] {
+    background: #111111 !important;
+    border-color: #3A3A3A !important;
+    border-radius: 10px !important;
+    color: #FFFFFF !important;
 }
+[data-baseweb="select"] span,
+[data-baseweb="select"] div { color: #FFFFFF !important; }
+[data-baseweb="popover"] ul,
+[data-baseweb="popover"] li,
+[role="listbox"],
+[role="option"] {
+    background: #111111 !important;
+    color: #FFFFFF !important;
+}
+[role="option"]:hover { background: #C0392B !important; }
+[data-testid="stNumberInput"] input,
+[data-testid="stTextInput"] input {
+    background: #111111 !important;
+    color: #FFFFFF !important;
+    border-color: #3A3A3A !important;
+    border-radius: 10px !important;
+}
+/* ── Number input +/- butonları ──────────────────────────────────────── */
+[data-testid="stNumberInput"] button {
+    background: #C0392B !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 6px !important;
+}
+[data-testid="stNumberInput"] button:hover {
+    background: #A93226 !important;
+}
+[data-testid="stNumberInput"] button svg * {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
+}
+/* ── Form submit butonu ──────────────────────────────────────────────── */
+[data-testid="stFormSubmitButton"] button,
+[data-testid="stFormSubmitButton"] > button,
+button[kind="primaryFormSubmit"],
+button[kind="secondaryFormSubmit"] {
+    background: #C0392B !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    width: fit-content !important;
+    max-width: 360px !important;
+    padding: 12px 32px !important;
+    margin: 0 auto !important;
+    display: block !important;
+}
+[data-testid="stFormSubmitButton"] button:hover { background: #A93226 !important; }
 
 /* ── Veri tablosu ────────────────────────────────────────────────────── */
 [data-testid="stDataFrame"] {
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #3A3A3A;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
 }
 
 /* ── Bölücü çizgi ────────────────────────────────────────────────────── */
-hr { border-color: #E2E8F0; margin: 20px 0; }
+hr { border-color: #3A3A3A; margin: 20px 0; }
 
 /* ── Bilgi kutuları ──────────────────────────────────────────────────── */
-.stSuccess, .stWarning, .stInfo, .stError { border-radius: 8px; }
+.stSuccess, .stWarning, .stInfo, .stError { border-radius: 10px; }
 
 /* ── Expander ────────────────────────────────────────────────────────── */
 [data-testid="stExpander"] {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
+    background: #111111;
+    border: 1px solid #3A3A3A;
+    border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.2);
+}
+[data-testid="stExpander"] summary {
+    background: #111111 !important;
+    border-radius: 12px;
+    padding: 14px 20px;
+}
+[data-testid="stExpander"] summary:hover {
+    background: #1E1E1E !important;
+}
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary * {
+    color: #FFFFFF !important;
+}
+[data-testid="stExpander"] svg {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
 }
 
 /* ── Alt caption ─────────────────────────────────────────────────────── */
-.stCaption { color: #94A3B8; font-size: 12px; }
+.stCaption { color: #777777; font-size: 12px; }
 
 /* ── Kart bileşeni ───────────────────────────────────────────────────── */
 .corp-card {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
-    padding: 20px 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    background: #2A2A2A;
+    border: 1px solid #3A3A3A;
+    border-radius: 14px;
+    padding: 22px 26px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.25);
     margin-bottom: 8px;
 }
 .corp-card-title {
     font-size: 11px;
-    font-weight: 600;
-    color: #94A3B8;
-    letter-spacing: .8px;
+    font-weight: 700;
+    color: #C0392B;
+    letter-spacing: 1px;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 /* ── Fırsat skoru rozetleri ──────────────────────────────────────────── */
 .badge-pos {
     display: inline-block;
-    background: #DCFCE7;
-    color: #166534;
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-weight: 700;
-    font-size: 22px;
+    background: #C0392B !important;
+    color: #FFFFFF !important;
+    border-radius: 24px;
+    padding: 8px 22px;
+    font-weight: 800 !important;
+    font-size: 26px !important;
+    border: none;
 }
 .badge-neg {
     display: inline-block;
-    background: #FEE2E2;
-    color: #991B1B;
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-weight: 700;
-    font-size: 22px;
+    background: #2A2A2A !important;
+    color: #AAAAAA !important;
+    border-radius: 24px;
+    padding: 8px 22px;
+    font-weight: 800 !important;
+    font-size: 26px !important;
+    border: 2px solid #555555;
 }
 
 /* ── Analiz çıktısı ──────────────────────────────────────────────────── */
 .analiz-box {
-    background: #FFFFFF;
-    border-left: 4px solid #1A56DB;
-    border-radius: 0 10px 10px 0;
-    padding: 20px 24px;
-    margin-top: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    background: #2A2A2A;
+    border-left: 4px solid #C0392B;
+    border-radius: 0 12px 12px 0;
+    padding: 22px 26px;
+    margin-top: 14px;
+    color: #DDDDDD;
+    box-shadow: 0 3px 12px rgba(0,0,0,.25);
 }
 
-/* ── Tablo başlık çizgisi ─────────────────────────────────────────────── */
+/* ── Hikaye kutusu ───────────────────────────────────────────────────── */
+.hikaye-box {
+    background: #252525;
+    border-left: 4px solid #888888;
+    border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #CCCCCC;
+    line-height: 1.8;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+
+/* ── Karne kutusu ────────────────────────────────────────────────────── */
+.karne-box {
+    background: #2C2020;
+    border-left: 4px solid #C0392B;
+    border-radius: 0 12px 12px 0;
+    padding: 16px 20px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #DDDDDD;
+    line-height: 1.8;
+    white-space: pre-line;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+
+/* ── Bölüm başlığı ───────────────────────────────────────────────────── */
 .section-title {
     font-size: 15px;
-    font-weight: 700;
-    color: #0F2A4A;
-    border-bottom: 2px solid #1A56DB;
+    font-weight: 800;
+    color: #EEEEEE;
+    border-bottom: 3px solid #C0392B;
     padding-bottom: 6px;
-    margin: 20px 0 14px;
+    margin: 22px 0 16px;
     display: inline-block;
+    letter-spacing: -.2px;
 }
 </style>
 """
@@ -370,6 +500,18 @@ def yukle_ilce_mahalle(df):
     return mapping
 
 
+@st.cache_data
+def load_ultimate_data():
+    if not os.path.exists(ULTIMATE_YOLU):
+        return pd.DataFrame()
+    df = pd.read_csv(ULTIMATE_YOLU, low_memory=False)
+    df["listing_id"] = df["listing_id"].astype(str)
+    for col in ["tahmini_kira", "mahalle_ort_m2_fiyat", "mahalle_favori_oda"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df.set_index("listing_id")
+
+
 @st.cache_resource
 def yukle_bolge_fiyatlari(_te):
     ilce_ort, mahalle_ort = {}, {}
@@ -424,10 +566,32 @@ st.set_page_config(
 st.markdown(CORPORATE_CSS, unsafe_allow_html=True)
 
 # Header
-st.markdown("""
+import base64, io
+from PIL import Image as _PILImage
+
+_logo_path = os.path.join(ROOT_DIR, "yeni_header_transparent.png")
+_logo_b64  = ""
+if os.path.exists(_logo_path):
+    _img = _PILImage.open(_logo_path)
+    _img.thumbnail((300, 120), _PILImage.LANCZOS)
+    _buf = io.BytesIO()
+    _img.save(_buf, format="PNG", optimize=True)
+    _logo_b64 = base64.b64encode(_buf.getvalue()).decode()
+
+_logo_html = (
+    f'<img src="data:image/png;base64,{_logo_b64}" style="height:72px; margin-right:24px;">'
+    if _logo_b64 else ""
+)
+
+st.markdown(f"""
 <div class="corp-header">
-    <h1>🏙️ İstEmlak-AI &nbsp;|&nbsp; Kurumsal Emlak Analiz Paneli</h1>
-    <p>İstanbul konut piyasası için makine öğrenmesi destekli fiyat tahmini ve fırsat analizi</p>
+    <div style="display:flex; align-items:center;">
+        {_logo_html}
+        <div>
+            <h1 style="margin:0;">İstEmlak-AI &nbsp;|&nbsp; Kurumsal Emlak Analiz Paneli</h1>
+            <p style="margin:8px 0 0; font-size:14px; opacity:0.75;">İstanbul konut piyasası için makine öğrenmesi destekli fiyat tahmini ve fırsat analizi</p>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -441,6 +605,7 @@ cfg, target_enc, ord_enc, models = load_artifacts()
 cats                          = cfg.get("cat_categories", {})
 imp                           = cfg.get("imputer_vals", {})
 df_raw                        = load_data()
+df_ultimate                   = load_ultimate_data()
 ilce_mahalle_map              = yukle_ilce_mahalle(df_raw)
 ilce_ort, mahalle_ort         = yukle_bolge_fiyatlari(target_enc)
 
@@ -448,7 +613,7 @@ ilce_ort, mahalle_ort         = yukle_bolge_fiyatlari(target_enc)
 # SEKMELER
 # ══════════════════════════════════════════════════════════════════════════════
 
-tab1, tab2 = st.tabs(["🔍  Fırsat Dedektörü", "💰  Fiyat Tahmini"])
+tab1, tab2, tab3 = st.tabs(["🔍  Fırsat Dedektörü", "💰  Fiyat Tahmini", "📋  Mahalle Analizi"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -457,15 +622,11 @@ tab1, tab2 = st.tabs(["🔍  Fırsat Dedektörü", "💰  Fiyat Tahmini"])
 with tab1:
     st.markdown('<p style="color:#64748B; font-size:13px; margin-bottom:20px;">Gerçek ilanların piyasa değerini XGBoost Q50 modeli ile karşılaştırır; potansiyel fırsatları tespit eder.</p>', unsafe_allow_html=True)
 
-    # Filtre satırı
-    f1, f2, f3 = st.columns([1, 1, 1])
+    f1, f2 = st.columns(2)
     with f1:
         ilce_t1 = st.selectbox("📍 İlçe", sorted(df_raw["district"].dropna().unique()), key="t1_ilce")
     with f2:
         mahalle_t1 = st.selectbox("🏘️ Mahalle", ilce_mahalle_map.get(ilce_t1, []), key="t1_mah")
-    with f3:
-        min_firsat = st.slider("Minimum Fırsat Skoru (%)", -30, 50, 5,
-                               help="Pozitif değer: ilan fiyatı piyasa değerinin altında")
 
     filtreli = df_raw[
         (df_raw["district"]     == ilce_t1) &
@@ -481,10 +642,10 @@ with tab1:
         filtreli["Fırsat %"] = (
             (filtreli["Tahmin"] - filtreli["price"]) / filtreli["Tahmin"] * 100
         ).round(1)
-        filtreli = filtreli[filtreli["Fırsat %"] >= min_firsat].sort_values("Fırsat %", ascending=False)
+        filtreli = filtreli.sort_values("Fırsat %", ascending=False)
 
         if filtreli.empty:
-            st.warning(f"%{min_firsat} üzerinde fırsat skoru olan ilan bulunamadı.")
+            st.warning("Bu bölgede ilan bulunamadı.")
         else:
             # ── Özet metrikler ─────────────────────────────────────────────
             st.markdown('<div class="section-title">Bölge Özeti</div>', unsafe_allow_html=True)
@@ -506,7 +667,12 @@ with tab1:
             tablo["İlan Fiyatı (₺)"]    = tablo["İlan Fiyatı (₺)"].map("{:,.0f}".format)
             tablo["Piyasa Tahmini (₺)"] = tablo["Piyasa Tahmini (₺)"].map("{:,.0f}".format)
 
-            st.dataframe(tablo.reset_index(drop=True), use_container_width=True, height=260)
+            st.dataframe(
+                tablo.reset_index(drop=True),
+                use_container_width=True,
+                height=260,
+                hide_index=False,
+            )
 
             # ── İlan detayı ────────────────────────────────────────────────
             st.markdown('<div class="section-title">İlan Detayı</div>', unsafe_allow_html=True)
@@ -551,6 +717,30 @@ with tab1:
                 with d3:
                     st.metric("Brüt m²",  f"{ev['gross_sqm']:.0f} m²"  if pd.notna(ev.get("gross_sqm"))   else "—")
                     st.metric("Kat",      f"{ev['floor']:.0f}/{ev['total_floors']:.0f}" if pd.notna(ev.get("floor")) else "—")
+
+                # ── İlan Analizi (ULTIMATE zengin veriler) ────────────────
+                ult_row = df_ultimate.loc[sel_id] if (not df_ultimate.empty and sel_id in df_ultimate.index) else None
+                if ult_row is not None:
+                    st.markdown('<div class="section-title">İlan Analizi</div>', unsafe_allow_html=True)
+
+                    u1, u2 = st.columns(2)
+                    tahmini_kira = ult_row.get("tahmini_kira", None)
+                    amortisman   = ult_row.get("amortisman_yili", None)
+                    if pd.notna(tahmini_kira):
+                        u1.metric("Tahmini Kira/Ay", f"{tahmini_kira:,.0f} ₺")
+                    if pd.notna(amortisman):
+                        u2.metric("Amortisman Süresi", str(amortisman))
+
+                    hikaye = ult_row.get("ilan_hikayesi", None)
+                    if pd.notna(hikaye) and hikaye:
+                        st.markdown("**İlan Hikayesi**")
+                        st.markdown(f'<div class="hikaye-box">{hikaye}</div>', unsafe_allow_html=True)
+
+                    karne = ult_row.get("mahalle_karnesi", None)
+                    if pd.notna(karne) and karne:
+                        st.markdown("**Bölge Karnesi**")
+                        karne_temiz = str(karne).replace("📊 BÖLGE KARNESİ:", "").strip()
+                        st.markdown(f'<div class="karne-box">{karne_temiz}</div>', unsafe_allow_html=True)
 
                 if st.button("📊 Bu İlanın Fiyat Analizini Göster", use_container_width=True, key="t1_analiz_btn"):
                     sonuc_dict = {
@@ -674,3 +864,92 @@ with tab2:
             analiz = fiyat_analizi_uret(ozellikler, sonuc, ilce_ort, mahalle_ort)
             st.markdown(f'<div class="analiz-box">{md2html(analiz)}</div>',
                         unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3 — MAHALLE ANALİZİ (ULTIMATE)
+# ─────────────────────────────────────────────────────────────────────────────
+with tab3:
+    if df_ultimate.empty:
+        st.warning("istanbul_emlak_ULTIMATE_2026.csv bulunamadı.")
+    else:
+        st.markdown('<p style="color:#64748B; font-size:13px; margin-bottom:20px;">ULTIMATE veri setiyle mahalle bazlı piyasa karnesi, kira getirisi ve amortisman analizi.</p>', unsafe_allow_html=True)
+
+        df_ult_reset = df_ultimate.reset_index()
+
+        t3c1, t3c2 = st.columns(2)
+        with t3c1:
+            ilce_t3 = st.selectbox("📍 İlçe", sorted(df_ult_reset["district"].dropna().unique()), key="t3_ilce")
+        with t3c2:
+            mah_opts_t3 = sorted(df_ult_reset[df_ult_reset["district"] == ilce_t3]["neighborhood"].dropna().unique())
+            mahalle_t3  = st.selectbox("🏘️ Mahalle", mah_opts_t3, key="t3_mah")
+
+        bolge = df_ult_reset[
+            (df_ult_reset["district"]     == ilce_t3) &
+            (df_ult_reset["neighborhood"] == mahalle_t3)
+        ].copy()
+
+        if bolge.empty:
+            st.warning("Bu bölgede ULTIMATE verisinde ilan bulunamadı.")
+        else:
+            # ── Özet metrikler ─────────────────────────────────────────────
+            st.markdown('<div class="section-title">Bölge Özeti</div>', unsafe_allow_html=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Toplam İlan",            f"{len(bolge):,}")
+            ort_m2 = bolge["mahalle_ort_m2_fiyat"].dropna().mean()
+            m2.metric("Ort. m² Fiyatı",         f"{ort_m2:,.0f} ₺" if pd.notna(ort_m2) else "—")
+            ort_kira = bolge["tahmini_kira"].dropna().mean()
+            m3.metric("Ort. Tahmini Kira",       f"{ort_kira:,.0f} ₺" if pd.notna(ort_kira) else "—")
+            favori_oda = bolge["mahalle_favori_oda"].dropna().mode()
+            m4.metric("Bölgede Tercih Edilen Oda", f"{int(favori_oda.iloc[0])}+1" if len(favori_oda) else "—")
+
+            # ── Kira & Amortisman dağılımı ─────────────────────────────────
+            st.markdown('<div class="section-title">Kira & Amortisman Dağılımı</div>', unsafe_allow_html=True)
+
+            kira_data = bolge["tahmini_kira"].dropna()
+            if not kira_data.empty:
+                import plotly.express as px
+                fig_kira = px.histogram(
+                    kira_data, nbins=20,
+                    labels={"value": "Tahmini Kira (₺)", "count": "İlan Sayısı"},
+                    title=f"{mahalle_t3} — Tahmini Kira Dağılımı",
+                    color_discrete_sequence=["#C0392B"],
+                )
+                fig_kira.update_layout(
+                    paper_bgcolor="#1E1E1E", plot_bgcolor="#2A2A2A",
+                    font_family="Inter", showlegend=False,
+                    font_color="#EEEEEE",
+                    title_font_color="#EEEEEE",
+                    margin=dict(t=40, b=20, l=10, r=10),
+                    height=300,
+                    xaxis=dict(gridcolor="#3A3A3A", linecolor="#3A3A3A", tickfont=dict(color="#EEEEEE")),
+                    yaxis=dict(gridcolor="#3A3A3A", linecolor="#3A3A3A", tickfont=dict(color="#EEEEEE")),
+                )
+                st.plotly_chart(fig_kira, use_container_width=True)
+
+            # ── Amortisman özeti ───────────────────────────────────────────
+            amor_data = bolge["amortisman_yili"].dropna()
+            if not amor_data.empty:
+                def parse_amor(s):
+                    m = re.match(r"(\d+)\s*Yıl", str(s))
+                    return int(m.group(1)) if m else None
+                amor_nums = amor_data.map(parse_amor).dropna()
+                if not amor_nums.empty:
+                    ac, _, _, _ = st.columns(4)
+                    ac.metric("Ort. Amortisman", f"{int(round(amor_nums.mean()))} yıl")
+
+            # ── İlan hikayeleri + karne ────────────────────────────────────
+            st.markdown('<div class="section-title">İlan Hikayeleri</div>', unsafe_allow_html=True)
+            hikaye_listesi = bolge[bolge["ilan_hikayesi"].notna()].head(5)
+            for _, row in hikaye_listesi.iterrows():
+                fiyat_str = f"{row['price']:,.0f} ₺" if pd.notna(row.get("price")) else "—"
+                kira_str  = f"{row['tahmini_kira']:,.0f} ₺/ay" if pd.notna(row.get("tahmini_kira")) else "—"
+                with st.expander(f"İlan {row.name}  |  {fiyat_str}  |  Kira: {kira_str}"):
+                    st.markdown(f'<div class="hikaye-box">{row["ilan_hikayesi"]}</div>', unsafe_allow_html=True)
+                    karne = row.get("mahalle_karnesi")
+                    if pd.notna(karne) and karne:
+                        karne_txt = str(karne).replace("📊 BÖLGE KARNESİ:", "").strip()
+                        st.markdown(f'<div class="karne-box" style="margin-top:8px;">{karne_txt}</div>', unsafe_allow_html=True)
+                    amor = row.get("amortisman_yili")
+                    if pd.notna(amor):
+                        st.caption(f"Amortisman: {amor}")
