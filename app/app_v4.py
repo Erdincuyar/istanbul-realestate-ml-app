@@ -588,7 +588,7 @@ st.markdown(f"""
     <div style="display:flex; align-items:center;">
         {_logo_html}
         <div>
-            <h1 style="margin:0;">HepsiEmlak Pro &nbsp;|&nbsp; Kurumsal Emlak Analiz Paneli</h1>
+            <h1 style="margin:0;">Hepsi Emlak Pro &nbsp;|&nbsp; Kurumsal Emlak Analiz Paneli</h1>
             <p style="margin:8px 0 0; font-size:14px; opacity:0.75;">İstanbul konut piyasası için makine öğrenmesi destekli fiyat tahmini ve fırsat analizi</p>
         </div>
     </div>
@@ -613,7 +613,7 @@ ilce_ort, mahalle_ort         = yukle_bolge_fiyatlari(target_enc)
 # SEKMELER
 # ══════════════════════════════════════════════════════════════════════════════
 
-tab1, = st.tabs(["🔍  Fırsat Dedektörü"])
+tab1, tab2, tab3 = st.tabs(["🔍  Fırsat Dedektörü", "💰  Fiyat Tahmini", "📋  Mahalle Analizi"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -755,3 +755,18 @@ with tab1:
                                 unsafe_allow_html=True)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 2 — FİYAT TAHMİNİ
+# ─────────────────────────────────────────────────────────────────────────────
+from tab_fiyat_tahmini import render as render_fiyat_tahmini
+with tab2:
+    render_fiyat_tahmini(cfg, cats, imp, ilce_mahalle_map, ilce_ort, mahalle_ort,
+                         fmt_tl, fiyat_analizi_uret, md2html)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3 — MAHALLE ANALİZİ
+# ─────────────────────────────────────────────────────────────────────────────
+from tab_mahalle_analizi import render as render_mahalle_analizi
+with tab3:
+    render_mahalle_analizi(df_ultimate)
